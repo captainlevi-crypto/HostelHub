@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HostelHub Student Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: auto;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    h2 { margin: 0; }
+    button {
+      background-color: #dc3545;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button:hover { background-color: #c82333; }
+    form {
+      background: white;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 30px;
+      box-shadow: 0 0 5px #ccc;
+    }
+    label { display: block; margin: 10px 0 5px; }
+    input[type="text"], textarea, select {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    textarea { resize: vertical; }
+    button.submit-btn {
+      margin-top: 10px;
+      background-color: #007bff;
+      width: 100%;
+    }
+    button.submit-btn:hover { background-color: #0056b3; }
+    .complaints-list {
+      background: white;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 0 5px #ccc;
+    }
+    .complaint-item {
+      border-bottom: 1px solid #ddd;
+      padding: 10px 0;
+    }
+    .complaint-item:last-child { border-bottom: none; }
+    .status { font-weight: bold; }
+    .status.open { color: orange; }
+    .status.in-progress { color: blue; }
+    .status.resolved { color: green; }
+    .access-denied {
+      text-align: center;
+      padding: 50px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .access-denied h2 { color: #dc3545; }
+    .access-denied a {
+      color: #007bff;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="main-content" style="display:none;">
+    <header>
+      <h2>Welcome, <span id="username"></span></h2>
+      <button id="logout-btn">Logout</button>
+    </header>
+
+    <section>
+      <h3>Raise a New Complaint</h3>
+      <form id="complaint-form">
+        <label for="title">Title</label>
+        <input type="text" id="title" required />
+        <label for="description">Description</label>
+        <textarea id="description" rows="3" required></textarea>
+        <button type="submit" class="submit-btn">Submit Complaint</button>
+      </form>
+    </section>
+
+    <section>
+      <h3>Your Complaint History</h3>
+      <div class="complaints-list" id="complaints-list"></div>
+    </section>
+  </div>
+
+  <div id="access-denied" class="access-denied" style="display:none;">
+    <h2>Access Denied</h2>
+    <p>This page is only for registered students.</p>
+    <p><a href="index.html">Go to Login Page</a></p>
+  </div>
+
+  <script>
+    const mainContent = document.getElementById("main-content");
+    const accessDenied = document.getElementById("access-denied");
+    const usernameSpan = document.getElementById("username");
+    const logoutBtn = document.getElementById("logout-btn");
+    const complaintForm = document.getElementById("complaint-form");
+    const complaintsList = document.getElementById("complaints-list");
+
+    // Admin email to block
+    const ADMIN_EMAIL = "shettyrajath2406@gmail.com";
+
+    // Check user login status - ONLY allow students
+    const userStr = sessionStorage.getItem("hostelhub_user");
+    const isAdmin = sessionStorage.getItem("hostelhub_admin");
+    
+    let user = null;
+    let isValidStudent = false;
+
+    if (userStr) {
+      try {
+        user = JSON.parse(userStr);
+        // Check if user is a student (not admin) and has valid role
+        if (user && user.username && user.username !== ADMIN_EMAIL && user.role === "student") {
+          isValidStudent = true;
+        }
+      } catch (e) {
+        isValidStudent = false;
+      }
+    }
+
+    // If admin is logged in or not a valid student, deny access
+    if (isAdmin || !isValidStudent) {
+      accessDenied.style.display = "block";
+      mainContent.style.display = "none";
+    } else {
+      mainContent.style.display = "block";
+      accessDenied.style.display = "none";
+      usernameSpan.textContent = user.username;
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", () => {
+        sessionStorage.removeItem("hostelhub_user");
+        sessionStorage.removeItem("hostelhub_admin");
+        window.location.href = "index.html";
+      });
+    }
+
+    function getComplaints() {
+      return JSON.parse(localStorage.getItem("hostelhub_complaints") || "[]");
+    }
+    function saveComplaints(complaints) {
+      localStorage.setItem("hostelhub_complaints", JSON.stringify(complaints));
+    }
+
+    function renderComplaints() {
+      if (!isValidStudent) return;
+      
+      let complaints = getComplaints();
+      complaints = complaints.filter(c => c.username === user.username);
+      
+      if (complaints.length === 0) {
+        complaintsList.innerHTML = "<p>No complaints raised yet.</p>";
+        return;
+      }
+      
+      complaintsList.innerHTML = "";
+      complaints.forEach(complaint => {
+        const div = document.createElement("div");
+        div.classList.add("complaint-item");
+        let statusClass = "open";
+        if (complaint.status === "In Progress") statusClass = "in-progress";
+        else if (complaint.status === "Resolved") statusClass = "resolved";
+
+        div.innerHTML = `
+          <div><strong>Title:</strong> ${complaint.title}</div>
+          <div><strong>Description:</strong> ${complaint.description}</div>
+          <div><strong>Status:</strong> <span class="status ${statusClass}">${complaint.status}</span></div>
+        `;
+        complaintsList.appendChild(div);
+      });
+    }
+
+    if (complaintForm && isValidStudent) {
+      complaintForm.addEventListener("submit", event => {
+        event.preventDefault();
+        const title = document.getElementById("title").value.trim();
+        const description = document.getElementById("description").value.trim();
+        
+        if (!title || !description) {
+          alert("Please fill out all fields.");
+          return;
+        }
+
+        let complaints = getComplaints();
+        complaints.push({
+          id: Date.now(),
+          username: user.username,
+          title,
+          description,
+          status: "Open"
+        });
+        saveComplaints(complaints);
+        complaintForm.reset();
+        renderComplaints();
+        alert("Complaint submitted successfully.");
+      });
+    }
+
+    if (isValidStudent) {
+      renderComplaints();
+    }
+  </script>
+</body>
+</html>
